@@ -21,7 +21,6 @@ from augmentation import (
     augment_keypoints_time_stretch
 )
 
-# ==================== CẤU HÌNH ====================
 CONFIG = {
     'NUM_AUGMENTED_SAMPLES': 10,
     'MAX_AUGS_PER_SAMPLE': 3,
@@ -31,7 +30,7 @@ CONFIG = {
     'NUM_WORKERS': max(1, min(4, cpu_count() - 1)),
 }
 
-# Thiết lập logging
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -46,7 +45,7 @@ N_UPPER_BODY_POSE_LANDMARKS = 25
 N_HAND_LANDMARKS = 21
 N_TOTAL_LANDMARKS = N_UPPER_BODY_POSE_LANDMARKS + N_HAND_LANDMARKS + N_HAND_LANDMARKS
 
-# --- GIỮ NGUYÊN CÁC HÀM HELPER CƠ BẢN ---
+
 def mediapipe_detection(image, model):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image.flags.writeable = False
@@ -147,7 +146,7 @@ def generate_augmented_samples(original_sequence, augmentation_functions, num_sa
                     is_valid = False
                     break
             except Exception as e:
-                # logging.warning(f"Augmentation {aug_func.__name__} failed: {e}")
+
                 is_valid = False
                 break
         if is_valid and current_sequence:
@@ -161,21 +160,16 @@ def save_sample(file_path, sequence, label):
         logging.error(f"Error saving {file_path}: {e}")
         return False
 
-# ==================== PROCESS LOGIC (UPDATED FOR FLAT STRUCTURE) ====================
 
 def process_single_video(args):
-    """Xử lý một video duy nhất - Flat Structure Version."""
     row_data, label_map, DATA_PATH, video_folder, sequence_length = args
     
     action = row_data['LABEL']
-    video_file = row_data['VIDEO'] # Ví dụ: "D001.mp4"
-    video_name_base = os.path.splitext(video_file)[0] # "D001"
+    video_file = row_data['VIDEO']
+    video_name_base = os.path.splitext(video_file)[0]
     
     label = label_map[action]
     
-    # --- LOGIC SKIP MỚI CHO FLAT STRUCTURE ---
-    # Kiểm tra xem file gốc đã tồn tại chưa. Nếu có rồi nghĩa là video này đã xử lý.
-    # Đường dẫn file gốc: dataset/augmented/D001_orig.npz
     expected_orig_path = os.path.join(DATA_PATH, f"{video_name_base}_orig.npz")
     
     if os.path.exists(expected_orig_path):
@@ -199,16 +193,14 @@ def process_single_video(args):
             
             idx = 0
             
-            # 1. Lưu sequence gốc
-            # Tên file: VideoName_orig.npz
+
             original_seq = interpolate_keypoints(frame_lists, sequence_length)
             if original_seq is not None:
                 file_path = os.path.join(DATA_PATH, f'{video_name_base}_orig.npz')
                 save_sample(file_path, original_seq, label)
                 idx += 1
             
-            # 2. Tạo và lưu các mẫu augmented
-            # Tên file: VideoName_aug_0.npz, VideoName_aug_1.npz...
+
             for aug_seq in generate_augmented_samples(
                 frame_lists, 
                 augmentations, 
@@ -230,10 +222,10 @@ def process_single_video(args):
         return {'video': video_file, 'status': 'error', 'message': str(e)}
 
 def main():
-    # ==================== ĐƯỜNG DẪN ====================
+
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     
-    # Flat Structure: Tất cả ném vào augmented/, không chia folder con
+
     DATA_PATH = os.path.join(BASE_DIR, 'dataset', 'augmented')
     DATASET_PATH = os.path.join(BASE_DIR, 'dataset')
     LOG_PATH = os.path.join(BASE_DIR, DATASET_PATH, 'label')
@@ -259,7 +251,7 @@ def main():
     selected_actions = sorted(df['LABEL'].unique())
     label_map = {action: idx for idx, action in enumerate(selected_actions)}
 
-    # Vẫn lưu label_map để sau này training biết số 0 là gì, số 1 là gì
+
     label_map_path = os.path.join(LOG_PATH, 'label_map.json')
     with open(label_map_path, 'w', encoding='utf-8') as f:
         json.dump(label_map, f, ensure_ascii=False, indent=4)

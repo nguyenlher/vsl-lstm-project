@@ -15,22 +15,20 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
 
-# Configuration
 BASE_URL = "https://qipedc.moet.gov.vn"
 VIDEOS_DIR = "dataset/videos"
-TEXT_DIR = "dataset/csv"
+TEXT_DIR = "dataset/labels"
 CSV_PATH = os.path.join(TEXT_DIR, "label.csv")
 MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
-REQUEST_TIMEOUT = 30  # seconds
+RETRY_DELAY = 2
+REQUEST_TIMEOUT = 30
 
-# Thread safety
 csv_lock = threading.Lock()
 video_counter = 0
 counter_lock = threading.Lock()
 
+
 def init_csv():
-    """Initialize CSV file"""
     global video_counter
     os.makedirs(TEXT_DIR, exist_ok=True)
     if not os.path.exists(CSV_PATH):
@@ -39,13 +37,12 @@ def init_csv():
             writer.writerow(["ID", "VIDEO", "LABEL"])
         video_counter = 0
     else:
-        # Count existing entries if resuming
+
         with open(CSV_PATH, 'r', encoding='utf-8') as f:
-            video_counter = sum(1 for _ in f) - 1  # Subtract header row
+            video_counter = sum(1 for _ in f) - 1
 
 
 def write_to_csv(id, video, label):
-    """Write a row to CSV file"""
     with csv_lock:
         with open(CSV_PATH, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
@@ -53,19 +50,18 @@ def write_to_csv(id, video, label):
 
 
 def download_video(video_data):
-    """Download single video with retry mechanism"""
     global video_counter
     video_url = video_data.get('video_url')
     label = video_data.get('label')
     filename = os.path.basename(urlparse(video_url).path)
     output_path = os.path.join(VIDEOS_DIR, filename)
     
-    # Skip if exists
+
     if os.path.exists(output_path):
         print(f"Skip: {filename}")
         return
     
-    # Retry mechanism
+
     for attempt in range(MAX_RETRIES):
         try:
             print(f"Downloading: {filename}" + (f" (attempt {attempt + 1}/{MAX_RETRIES})" if attempt > 0 else ""))
@@ -87,13 +83,13 @@ def download_video(video_data):
                         size = file.write(chunk)
                         bar.update(size)
             
-            # Add to CSV with proper ID counter
+
             with counter_lock:
                 video_counter += 1
                 write_to_csv(video_counter, filename, label)
             
             print(f"Completed: {filename}")
-            return  # Success, exit retry loop
+            return
             
         except requests.exceptions.Timeout:
             print(f"Timeout {filename}: attempt {attempt + 1}/{MAX_RETRIES}")
@@ -101,15 +97,15 @@ def download_video(video_data):
             print(f"Connection error {filename}: {str(e)}")
         except requests.exceptions.HTTPError as e:
             print(f"HTTP error {filename}: {str(e)}")
-            break  # Don't retry on 4xx/5xx errors
+            break
         except Exception as e:
             print(f"Unexpected error {filename}: {str(e)}")
         
-        # Cleanup failed download
+
         if os.path.exists(output_path):
             os.remove(output_path)
         
-        # Wait before retry
+
         if attempt < MAX_RETRIES - 1:
             time.sleep(RETRY_DELAY)
     
@@ -117,15 +113,14 @@ def download_video(video_data):
 
 
 def parse_page(driver):
-    """Parse current page to extract video data"""
     videos = []
     try:
-        # Wait for page to load
+
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "section:nth-of-type(2) > div:nth-of-type(2)"))
         )
         
-        # Find all video links
+
         video_elements = driver.find_elements(
             By.CSS_SELECTOR,
             "section:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > a"
@@ -155,22 +150,20 @@ def parse_page(driver):
 
 
 def get_next_page_button(driver, current_page):
-    """Find the correct button to click for next page based on pagination structure"""
     try:
-        # Get all pagination buttons
+
         buttons = driver.find_elements(By.CSS_SELECTOR, "button")
         
-        # Look for the button with text matching next page number
+
         next_page_str = str(current_page + 1)
         for button in buttons:
             if button.text.strip() == next_page_str:
                 return button
         
-        # If not found by text, check if there's a "Last" button
-        # This means we might be at the last page
+
         for button in buttons:
             if "Last" in button.text or button.text.strip() == "»":
-                return None  # We're at the last page
+                return None
         
         return None
     except Exception as e:
@@ -179,16 +172,15 @@ def get_next_page_button(driver, current_page):
 
 
 def crawl_videos():
-    """Crawl all videos using Selenium"""
     print("\n" + "="*60)
     print("CRAWLING VSL DICTIONARY")
     print("="*60)
     
-    # Setup Chrome
+
     options = Options()
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--no-sandbox')
-    # options.add_argument('--headless')  # Uncomment to hide browser
+
     
     print("Setting up ChromeDriver...")
     service = ChromeService(ChromeDriverManager().install())
@@ -202,14 +194,14 @@ def crawl_videos():
         print("Connected to VSL dictionary")
         time.sleep(3)
         
-        # Crawl pages until no more pages found
+
         while True:
             print(f"Crawling page {current_page}...")
             videos = parse_page(driver)
             all_videos.extend(videos)
             print(f"  Found {len(videos)} videos (Total: {len(all_videos)})")
             
-            # Try to find and click next page button
+
             next_button = get_next_page_button(driver, current_page)
             
             if next_button is None:
@@ -217,11 +209,11 @@ def crawl_videos():
                 break
             
             try:
-                # Scroll to button and click
+
                 driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
                 time.sleep(0.5)
                 next_button.click()
-                time.sleep(2)  # Wait for page to load
+                time.sleep(2)
                 current_page += 1
                 
             except Exception as e:
@@ -240,22 +232,21 @@ def crawl_videos():
 
 
 def main():
-    """Main function"""
     print("\nVSL DATASET DOWNLOADER")
     print("="*60)
     
-    # Setup
+
     os.makedirs(VIDEOS_DIR, exist_ok=True)
     init_csv()
     
-    # Crawl videos
+
     videos = crawl_videos()
     
     if not videos:
         print("No videos found")
         return
     
-    # Download videos
+
     print("\n" + "="*60)
     print("STARTING DOWNLOAD")
     print("="*60)

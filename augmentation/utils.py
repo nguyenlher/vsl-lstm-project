@@ -2,18 +2,8 @@ import numpy as np
 from typing import List, Optional, Tuple
 from .constants import N_UPPER_BODY_POSE_LANDMARKS
 
+
 def calculate_keypoints_center(points: np.ndarray, num_pose_landmarks_for_center: int) -> Tuple[float, float, bool]:
-    """
-    Calculate the center point for scaling or rotation based on valid keypoints.
-
-    Args:
-        points: 3D array of keypoints (num_landmarks, 3).
-        num_pose_landmarks_for_center: Number of pose landmarks to use for center calculation.
-
-    Returns:
-        Tuple of (center_x, center_y, can_calculate_center).
-    """
-    # Select pose and hand points for center calculation
     pose_points = points[0:N_UPPER_BODY_POSE_LANDMARKS]
     hand_points_start_index = N_UPPER_BODY_POSE_LANDMARKS
     other_points_for_center = points[hand_points_start_index:]
@@ -35,7 +25,6 @@ def calculate_keypoints_center(points: np.ndarray, num_pose_landmarks_for_center
             center_y = np.median(valid_center_points[:, 1])
             can_calculate_center = True
         else:
-            # Fallback to all valid points if no points in selection
             all_valid_points_mask = np.any(points != 0, axis=1)
             all_valid_points = points[all_valid_points_mask]
             if all_valid_points.shape[0] > 0:

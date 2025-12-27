@@ -8,28 +8,15 @@ def compute_ik_elbow_solutions(
     len_upper_arm: float,
     len_forearm: float
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Compute two possible elbow positions for 2D inverse kinematics (IK).
-
-    Args:
-        p_shoulder_xy: Shoulder position (x, y).
-        p_wrist_target_xy: Target wrist position (x, y).
-        len_upper_arm: Length of upper arm.
-        len_forearm: Length of forearm.
-
-    Returns:
-        Tuple of two elbow solutions (elbow_sol1_xy, elbow_sol2_xy).
-    """
     d = np.linalg.norm(p_wrist_target_xy - p_shoulder_xy)
     if d < 1e-9:
-        d = 1e-9  # Avoid division by zero
+        d = 1e-9
 
     a = (len_upper_arm**2 - len_forearm**2 + d**2) / (2 * d)
     h_squared = len_upper_arm**2 - a**2
 
     if h_squared < -1e-9:
         logging.error(f"IK Critical Error: h_squared is significantly negative ({h_squared:.4g}). d={d:.3f}, l1={len_upper_arm:.3f}, l2={len_forearm:.3f}, a={a:.3f}")
-        # Fallback: extend straight
         vec_sw = (p_wrist_target_xy - p_shoulder_xy) / d
         return p_shoulder_xy + vec_sw * len_upper_arm, p_shoulder_xy + vec_sw * len_upper_arm
     h = np.sqrt(max(0, h_squared))
@@ -55,21 +42,6 @@ def select_ik_elbow_solution(
     p_wrist_target_xy: np.ndarray,
     prefer_original_bend: bool
 ) -> np.ndarray:
-    """
-    Select the best elbow solution based on original bend preference for IK.
-
-    Args:
-        elbow_sol1_xy: First elbow solution.
-        elbow_sol2_xy: Second elbow solution.
-        original_elbow_xy: Original elbow position.
-        original_wrist_xy: Original wrist position.
-        p_shoulder_xy: Shoulder position.
-        p_wrist_target_xy: Target wrist position.
-        prefer_original_bend: Whether to prefer original bend.
-
-    Returns:
-        Selected elbow position.
-    """
     if not prefer_original_bend or original_elbow_xy is None or original_wrist_xy is None:
         if original_elbow_xy is not None:
             dist1 = np.linalg.norm(elbow_sol1_xy - original_elbow_xy)
@@ -116,33 +88,18 @@ def solve_2d_arm_ik(
     original_wrist_xy: Optional[np.ndarray] = None,
     prefer_original_bend: bool = True
 ) -> Optional[np.ndarray]:
-    """
-    Solve 2D inverse kinematics (IK) for a 2-link arm, attempting to maintain elbow bend direction.
-
-    Args:
-        p_shoulder_xy: Shoulder position (x, y).
-        p_wrist_target_xy: Target wrist position (x, y).
-        len_upper_arm: Upper arm length.
-        len_forearm: Forearm length.
-        original_elbow_xy: Original elbow position.
-        original_wrist_xy: Original wrist position.
-        prefer_original_bend: Whether to prefer original bend.
-
-    Returns:
-        New elbow position or None if failed.
-    """
     d = np.linalg.norm(p_wrist_target_xy - p_shoulder_xy)
     l1 = max(1e-5, len_upper_arm)
     l2 = max(1e-5, len_forearm)
 
-    # Case 1: Target too far
+
     if d > l1 + l2 - 1e-5:
         if d < 1e-9:
             return p_shoulder_xy + np.array([l1, 0]) if original_elbow_xy is None else original_elbow_xy.copy()
         vec_sw = (p_wrist_target_xy - p_shoulder_xy) / d
         return p_shoulder_xy + vec_sw * l1
 
-    # Case 2: Target too close
+
     if d < abs(l1 - l2) + 1e-5:
         logging.warning(f"IK Warning: Target too close. d={d:.3f}, l1={l1:.3f}, l2={l2:.3f}")
         if original_elbow_xy is not None:
@@ -152,7 +109,7 @@ def solve_2d_arm_ik(
         vec_sw = (p_wrist_target_xy - p_shoulder_xy) / d
         return p_shoulder_xy + vec_sw * l1
 
-    # Case 3: Normal solution
+
     elbow_sol1_xy, elbow_sol2_xy = compute_ik_elbow_solutions(p_shoulder_xy, p_wrist_target_xy, l1, l2)
     return select_ik_elbow_solution(elbow_sol1_xy, elbow_sol2_xy, original_elbow_xy, original_wrist_xy,
                                  p_shoulder_xy, p_wrist_target_xy, prefer_original_bend)
