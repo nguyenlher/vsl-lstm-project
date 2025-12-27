@@ -11,3 +11,4 @@ scikit-learn
 pandas
 numpy
 webdriver-manager
+PyQt5
